@@ -13,8 +13,10 @@ class AudioConfig:
     channels: int = 1
     device_index: Optional[int] = None
     noise_reduction: bool = True
-    silence_threshold: float = 0.01
-    silence_duration: float = 1.0
+    silence_threshold: float = 0.02  # Increased to reduce false positives
+    silence_duration: float = 1.5   # Longer silence before processing
+    voice_activity_threshold: float = 0.5  # Voice activity detection threshold
+    min_speech_duration: float = 0.8  # Minimum speech duration to process
 
 
 @dataclass
@@ -24,9 +26,10 @@ class WhisperConfig:
     language: Optional[str] = None  # Auto-detect if None
     task: str = "transcribe"  # transcribe or translate
     temperature: float = 0.0
-    no_speech_threshold: float = 0.6
-    logprob_threshold: float = -1.0
-    compression_ratio_threshold: float = 2.4
+    no_speech_threshold: float = 0.8  # Increased to reduce false positives
+    logprob_threshold: float = -0.5   # Higher threshold for better confidence
+    compression_ratio_threshold: float = 2.0  # Lower threshold to reject repetitive text
+    min_confidence: float = 0.7  # Minimum confidence to accept transcription
 
 
 @dataclass

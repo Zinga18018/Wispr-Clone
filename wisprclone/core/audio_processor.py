@@ -128,6 +128,34 @@ class AudioProcessor:
         rms = np.sqrt(np.mean(audio_chunk ** 2))
         return rms < self.silence_threshold
     
+    def detect_voice_activity(self, audio_chunk: np.ndarray) -> bool:
+        """Advanced voice activity detection"""
+        if len(audio_chunk) == 0:
+            return False
+        
+        # Calculate multiple audio features
+        rms = np.sqrt(np.mean(audio_chunk ** 2))
+        
+        # Calculate zero crossing rate (indicates speech vs noise)
+        zero_crossings = np.where(np.diff(np.sign(audio_chunk)))[0]
+        zcr = len(zero_crossings) / len(audio_chunk)
+        
+        # Calculate spectral centroid (frequency characteristics)
+        stft = np.abs(librosa.stft(audio_chunk, n_fft=512, hop_length=256))
+        spectral_centroid = np.mean(librosa.feature.spectral_centroid(S=stft))
+        
+        # Voice activity criteria
+        energy_threshold = self.config.audio.voice_activity_threshold * self.silence_threshold
+        zcr_threshold = 0.1  # Typical for speech
+        spectral_threshold = 1000  # Hz, typical for human speech
+        
+        # Combine criteria
+        has_energy = rms > energy_threshold
+        has_speech_zcr = 0.05 < zcr < 0.25  # Speech typically in this range
+        has_speech_spectrum = 200 < spectral_centroid < 4000  # Human vocal range
+        
+        return has_energy and has_speech_zcr and has_speech_spectrum
+    
     def audio_callback(self, indata, frames, time, status):
         """Callback function for audio stream"""
         if status:
@@ -204,36 +232,56 @@ class AudioProcessor:
         return None
     
     def _process_audio_stream(self) -> None:
-        """Process audio stream in separate thread"""
+        """Process audio stream in separate thread with improved voice activity detection"""
         silence_start_time = None
+        speech_start_time = None
         
         while self.is_recording:
             try:
                 # Get audio chunk from queue
                 audio_chunk = self.audio_queue.get(timeout=0.1)
                 
-                # Add to current buffer
-                self.current_buffer = np.concatenate([self.current_buffer, audio_chunk])
-                
-                # Check for silence
+                # Check for voice activity (more sophisticated than just silence)
+                has_voice = self.detect_voice_activity(audio_chunk)
                 is_silent = self.detect_silence(audio_chunk)
                 current_time = time.time()
                 
-                if is_silent:
+                if has_voice and not is_silent:
+                    # Voice detected
+                    if speech_start_time is None:
+                        speech_start_time = current_time
+                        self.current_buffer = np.array([])  # Start fresh buffer
+                    
+                    # Add to current buffer
+                    self.current_buffer = np.concatenate([self.current_buffer, audio_chunk])
+                    silence_start_time = None
+                    self.last_audio_time = current_time
+                    
+                elif len(self.current_buffer) > 0:
+                    # No voice but we have buffer - check for silence
                     if silence_start_time is None:
                         silence_start_time = current_time
                     elif current_time - silence_start_time > self.silence_duration:
-                        # Long silence detected, process current buffer
-                        if len(self.current_buffer) > self.sample_rate * 0.5:  # At least 0.5 seconds
+                        # Long silence after speech - process if sufficient duration
+                        speech_duration = len(self.current_buffer) / self.sample_rate
+                        if speech_duration >= self.config.audio.min_speech_duration:
                             self._process_complete_utterance()
+                        else:
+                            # Too short, likely noise - discard
+                            print(f"Discarding short audio ({speech_duration:.2f}s)")
+                            self.current_buffer = np.array([])
+                        
+                        speech_start_time = None
                         silence_start_time = None
                 else:
+                    # No voice and no buffer - reset timers
+                    speech_start_time = None
                     silence_start_time = None
-                    self.last_audio_time = current_time
                 
                 # Process if buffer gets too long (prevent memory issues)
                 if len(self.current_buffer) > self.sample_rate * 30:  # 30 seconds max
                     self._process_complete_utterance()
+                    speech_start_time = None
                 
             except queue.Empty:
                 continue

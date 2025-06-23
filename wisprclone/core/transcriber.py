@@ -145,11 +145,36 @@ class WhisperTranscriber:
                 self.stats['total_processing_time'] / self.stats['total_transcriptions']
             )
             
+            # Calculate confidence
+            confidence = self._calculate_confidence(result)
+            text = result["text"].strip()
+            
+            # Apply confidence and quality filters
+            if confidence < self.config.whisper.min_confidence:
+                return {
+                    "error": f"Low confidence transcription rejected ({confidence:.2f} < {self.config.whisper.min_confidence})",
+                    "timestamp": time.time()
+                }
+            
+            # Check for repetitive text (like repeated "Thank you")
+            if self._is_repetitive_text(text):
+                return {
+                    "error": f"Repetitive text rejected: {text[:50]}",
+                    "timestamp": time.time()
+                }
+            
+            # Check for very short transcriptions that might be noise
+            if len(text) < 3:
+                return {
+                    "error": f"Text too short, likely noise: '{text}'",
+                    "timestamp": time.time()
+                }
+            
             # Prepare result
             transcription_result = {
-                "text": result["text"].strip(),
+                "text": text,
                 "language": result.get("language", "unknown"),
-                "confidence": self._calculate_confidence(result),
+                "confidence": confidence,
                 "processing_time": processing_time,
                 "audio_duration": audio_duration,
                 "real_time_factor": processing_time / audio_duration if audio_duration > 0 else 0,
@@ -194,6 +219,43 @@ class WhisperTranscriber:
             
         except:
             return 0.0
+    
+    def _is_repetitive_text(self, text: str) -> bool:
+        """Check if text is repetitive or likely noise"""
+        if not text or len(text.strip()) == 0:
+            return True
+        
+        text = text.lower().strip()
+        
+        # Common false positive phrases to filter out
+        noise_phrases = {
+            "thank you", "thanks", "okay", "ok", "yeah", "yes", "no", "ah", "oh", "um", "uh",
+            "hmm", "mm", "mhm", "you know", "like", "so", "well", "right", "sure", "mk", "mmk"
+        }
+        
+        # Check if entire text is just a noise phrase
+        if text in noise_phrases:
+            return True
+        
+        # Check for very repetitive patterns
+        words = text.split()
+        if len(words) > 3:
+            # Check if more than 60% of words are the same
+            word_counts = {}
+            for word in words:
+                word_counts[word] = word_counts.get(word, 0) + 1
+            
+            max_count = max(word_counts.values())
+            if max_count / len(words) > 0.6:
+                return True
+        
+        # Check for character repetition (like "आ आ आ आ")
+        if len(text) > 10:
+            chars = text.replace(" ", "").replace(",", "")
+            if len(set(chars)) <= 2:  # Only 1-2 unique characters
+                return True
+        
+        return False
     
     def transcribe_file(self, file_path: str, **kwargs) -> Dict:
         """Transcribe audio file"""

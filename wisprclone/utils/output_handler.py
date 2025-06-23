@@ -14,6 +14,10 @@ class OutputHandler:
         self.output_file = None
         self.session_log = []
         
+        # Initialize typing simulator once
+        from .typing_simulator import TypingSimulator
+        self.typing_simulator = TypingSimulator(config)
+        
         # Initialize output file if enabled
         if config.output.output_to_file:
             self._initialize_output_file()
@@ -70,9 +74,8 @@ class OutputHandler:
             self._output_to_file(text, result)
         
         if self.config.output.typing_enabled:
-            from .typing_simulator import TypingSimulator
-            typing_sim = TypingSimulator(self.config)
-            typing_sim.type_text(text)
+            # Use the reusable typing simulator instance
+            self.typing_simulator.type_text(text)
     
     def _handle_error(self, result: Dict[str, Any]) -> None:
         """Handle transcription errors"""
@@ -213,6 +216,10 @@ class OutputHandler:
         """Clear current session log"""
         self.session_log.clear()
         print("Session log cleared")
+    
+    def update_typing_config(self) -> None:
+        """Update typing simulator configuration"""
+        self.typing_simulator.enabled = self.config.output.typing_enabled
     
     def close(self) -> None:
         """Close output handler and cleanup"""

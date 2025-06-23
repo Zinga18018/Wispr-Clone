@@ -459,25 +459,29 @@ class WisprCloneGUI:
         status = "enabled" if self.config.output.output_to_clipboard else "disabled"
         self.update_status(f"Clipboard output {status}")
         
-        # Update button appearance
+        # Update button appearance with proper colors
         if self.config.output.output_to_clipboard:
-            self.clipboard_button.configure(fg_color="green")
+            self.clipboard_button.configure(fg_color="#2B8B3D")  # Green color
         else:
-            self.clipboard_button.configure(fg_color=None)
+            self.clipboard_button.configure(fg_color=["#3B8ED0", "#1F6AA5"])  # Default blue colors
     
     def toggle_typing(self):
         """Toggle typing simulation"""
         self.config.output.typing_enabled = not self.config.output.typing_enabled
         self.config.save()
         
+        # Update output handler's typing configuration
+        if self.output_handler:
+            self.output_handler.update_typing_config()
+        
         status = "enabled" if self.config.output.typing_enabled else "disabled"
         self.update_status(f"Typing simulation {status}")
         
-        # Update button appearance
+        # Update button appearance with proper colors
         if self.config.output.typing_enabled:
-            self.typing_button.configure(fg_color="green")
+            self.typing_button.configure(fg_color="#2B8B3D")  # Green color
         else:
-            self.typing_button.configure(fg_color=None)
+            self.typing_button.configure(fg_color=["#3B8ED0", "#1F6AA5"])  # Default blue colors
     
     def clear_output(self):
         """Clear output text"""

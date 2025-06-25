@@ -407,7 +407,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you find WisprClone useful, please consider giving it a star!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/wisprclone&type=Date)](https://star-history.com/#yourusername/wisprclone&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Zinga18018/wisprclone&type=Date)](https://star-history.com/#Zinga18018/wisprclone&Date)
 
 ---
 
